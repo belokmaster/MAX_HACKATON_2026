@@ -50,6 +50,16 @@ async def lifespan(app: FastAPI):
     app.state.bot_client = bot_client
     await bot_client.__aenter__()
 
+    # 5.1. Получение и логирование информации о боте (/me)
+    try:
+        me_info = await bot_client.get_me()
+        if me_info:
+            logger.info("Информация о боте (/me): %s", me_info)
+        else:
+            logger.warning("Не удалось получить информацию о боте (/me): пустой ответ")
+    except Exception as e:
+        logger.error("Ошибка при запросе информации о боте (/me): %s", e)
+
     # 6. Передача клиента в диспетчер событий
     dispatcher.set_client(app.state.bot_client)
 
