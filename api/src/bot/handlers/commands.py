@@ -15,14 +15,36 @@ log = logging.getLogger(__name__)
 
 
 def extract_ids(update: dict) -> tuple[int, int]:
-    """Извлечение идентификатора пользователя и идентификатора чата из события."""
+    """
+    Извлечение идентификатора пользователя и идентификатора чата из события.
+    Поддерживает контракты событий bot_started и message_created платформы MAX.
+    """
+    # 1. Формат bot_started: user и chat_id на верхнем уровне
+    if "user" in update and "chat_id" in update:
+        u_obj = update["user"]
+        u_id = u_obj.get("user_id", 0) if isinstance(u_obj, dict) else int(u_obj)
+        return int(u_id), int(update["chat_id"])
+
+    # 2. Формат message_created: message.sender и message.recipient
+    msg = update.get("message")
+    if not isinstance(msg, dict):
+        msg = update.get("payload", {}).get("message", {}) if isinstance(update.get("payload"), dict) else {}
+
+    sender = msg.get("sender", {}) if isinstance(msg.get("sender"), dict) else {}
+    user_id = sender.get("user_id", 0)
+
+    recipient = msg.get("recipient", {}) if isinstance(msg.get("recipient"), dict) else {}
+    chat_id = recipient.get("chat_id") or update.get("chat_id") or user_id
+
+    # 3. Fallback на payload
     payload = update.get("payload", {})
-    if "user" in payload:  # Событие запуска бота (bot_started)
-        return payload["user"]["user_id"], payload["chat_id"]
-    msg = payload.get("message", {})
-    user_id = msg.get("sender", {}).get("user_id", 0)
-    chat_id = payload.get("chat_id") or user_id
-    return user_id, chat_id
+    if isinstance(payload, dict) and "user" in payload:
+        p_user = payload["user"]
+        p_uid = p_user.get("user_id", 0) if isinstance(p_user, dict) else int(p_user)
+        p_cid = payload.get("chat_id") or p_uid
+        return int(p_uid), int(p_cid)
+
+    return int(user_id), int(chat_id)
 
 
 async def handle_start(client: MaxBotClient, update: dict) -> None:
@@ -44,6 +66,7 @@ async def handle_start(client: MaxBotClient, update: dict) -> None:
     
     await client.send_message(
         chat_id=chat_id,
+        user_id=user_id,
         text="Добро пожаловать! Я помогу вам быстро оформить заявку в управляющую компанию.\nПожалуйста, укажите адрес вашего дома (например: «ул. Пушкина, д. 10»):"
     )
 
@@ -66,7 +89,7 @@ async def handle_help(client: MaxBotClient, update: dict) -> None:
     else:
         text += "Чтобы начать работу, отправьте команду /start и укажите ваш адрес."
         
-    await client.send_message(chat_id=chat_id, text=text)
+    await client.send_message(chat_id=chat_id, user_id=user_id, text=text)
 
 
 async def handle_status(client: MaxBotClient, update: dict) -> None:
@@ -78,7 +101,7 @@ async def handle_status(client: MaxBotClient, update: dict) -> None:
     log.info("Команда /status: запрос статуса заявок user_id=%s, найдено заявок: %d", user_id, len(appeals))
     
     if not appeals:
-        await client.send_message(chat_id=chat_id, text="У вас нет активных заявок.")
+        await client.send_message(chat_id=chat_id, user_id=user_id, text="У вас нет активных заявок.")
         return
         
     for appeal in appeals:
@@ -102,7 +125,7 @@ async def handle_status(client: MaxBotClient, update: dict) -> None:
                     ]
                 }
             })
-        await client.send_message(chat_id=chat_id, text=text, attachments=attachments if attachments else None)
+        await client.send_message(chat_id=chat_id, user_id=user_id, text=text, attachments=attachments if attachments else None)
 
 
 async def handle_admin(client: MaxBotClient, update: dict) -> None:
@@ -116,7 +139,7 @@ async def handle_admin(client: MaxBotClient, update: dict) -> None:
     # Проверка прав администратора
     if user_id not in settings.ADMIN_USER_IDS:
         log.warning("Отказ в доступе к /admin: пользователь %s не является администратором", user_id)
-        await client.send_message(chat_id=chat_id, text="У вас нет прав для доступа к панели диспетчера.")
+        await client.send_message(chat_id=chat_id, user_id=user_id, text="У вас нет прав для доступа к панели диспетчера.")
         return
         
     appeals = appeal_service.get_all_appeals()
@@ -124,7 +147,7 @@ async def handle_admin(client: MaxBotClient, update: dict) -> None:
     log.info("Команда /admin: доступ разрешен для admin_id=%s, открытых заявок: %d", user_id, len(open_appeals))
     
     if not open_appeals:
-        await client.send_message(chat_id=chat_id, text="Нет открытых заявок.")
+        await client.send_message(chat_id=chat_id, user_id=user_id, text="Нет открытых заявок.")
         return
         
     text = "Список открытых заявок:\n"
@@ -142,4 +165,4 @@ async def handle_admin(client: MaxBotClient, update: dict) -> None:
             }
         })
         
-    await client.send_message(chat_id=chat_id, text=text, attachments=attachments if attachments else None)
+    await client.send_message(chat_id=chat_id, user_id=user_id, text=text, attachments=attachments if attachments else None)

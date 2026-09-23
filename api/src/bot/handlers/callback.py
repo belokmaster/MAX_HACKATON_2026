@@ -16,15 +16,33 @@ log = logging.getLogger(__name__)
 
 
 def extract_callback(update: dict) -> tuple[int, int, str, str, str]:
-    """Извлечение данных callback-события: user_id, chat_id, callback_id, payload, message_id."""
-    payload_obj = update.get("payload", {})
-    callback_id = payload_obj["callback_id"]
-    user_id = payload_obj["user"]["user_id"]
-    message = payload_obj.get("message", {})
-    chat_id = message.get("recipient", {}).get("chat_id") or user_id
-    payload = payload_obj.get("payload", "")
-    message_id = message.get("body", {}).get("mid", "")
-    return user_id, chat_id, callback_id, payload, message_id
+    """
+    Извлечение данных callback-события: user_id, chat_id, callback_id, payload, message_id.
+    Поддерживает контракт платформы MAX (update['callback'], update['message']),
+    а также возможную обертку payload.
+    """
+    cb = update.get("callback")
+    if not isinstance(cb, dict):
+        cb = update.get("payload", {}).get("callback", {}) if isinstance(update.get("payload"), dict) else {}
+        if not cb and isinstance(update.get("payload"), dict):
+            cb = update.get("payload")
+
+    callback_id = cb.get("callback_id", "")
+    payload = cb.get("payload", "")
+    user = cb.get("user", {}) if isinstance(cb.get("user"), dict) else {}
+    user_id = user.get("user_id", 0)
+
+    msg = update.get("message")
+    if not isinstance(msg, dict):
+        msg = update.get("payload", {}).get("message", {}) if isinstance(update.get("payload"), dict) else {}
+
+    recipient = msg.get("recipient", {}) if isinstance(msg.get("recipient"), dict) else {}
+    chat_id = recipient.get("chat_id") or update.get("chat_id") or user_id
+
+    body = msg.get("body", {}) if isinstance(msg.get("body"), dict) else {}
+    message_id = body.get("mid", "")
+
+    return int(user_id), int(chat_id), str(callback_id), str(payload), str(message_id)
 
 
 def reset_to_problem(state) -> None:
@@ -69,6 +87,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
         
         await client.send_message(
             chat_id=chat_id,
+            user_id=user_id,
             text="Это зона ответственности УК. Ремонт бесплатный. Пожалуйста, выберите время визита мастера:",
             attachments=[shift_windows_keyboard(formatted_windows)]
         )
@@ -80,6 +99,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
         state.responsibility = "resident"
         await client.send_message(
             chat_id=chat_id,
+            user_id=user_id,
             text="Это зона вашей ответственности (платная услуга от 500 рублей). Вызвать мастера УК?",
             attachments=[resident_choice_keyboard()]
         )
@@ -92,6 +112,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
         emergency_phone = uk_info.emergency_phone if uk_info else "+7 000 000-00-00"
         await client.send_message(
             chat_id=chat_id,
+            user_id=user_id,
             text=f"ВНИМАНИЕ: ЭТО АВАРИЯ! Пожалуйста, немедленно свяжитесь с аварийной службой: {emergency_phone}"
         )
         appeal = appeal_service.create_appeal(
@@ -123,6 +144,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
         
         await client.send_message(
             chat_id=chat_id,
+            user_id=user_id,
             text="Выберите время для визита платного мастера:",
             attachments=[shift_windows_keyboard(formatted_windows)]
         )
@@ -132,7 +154,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
     elif payload == "resident:cancel":
         log.info("Жилец отказался от платного вызова: user_id=%s", user_id)
         reset_to_problem(state)
-        await client.send_message(chat_id=chat_id, text="Заявка отменена. Если потребуется помощь — обращайтесь.")
+        await client.send_message(chat_id=chat_id, user_id=user_id, text="Заявка отменена. Если потребуется помощь — обращайтесь.")
         
     elif payload.startswith("book:"):
         action_or_window = payload[5:]  # отрезаем префикс "book:"
@@ -142,7 +164,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
             if state.pending_appeal_id:
                 appeal_service.cancel_appeal(state.pending_appeal_id)
             reset_to_problem(state)
-            await client.send_message(chat_id=chat_id, text="Оформление заявки отменено.")
+            await client.send_message(chat_id=chat_id, user_id=user_id, text="Оформление заявки отменено.")
         else:
             window_id = action_or_window
             log.info("Выбрана смена %s для заявки #%s (user_id=%s)", window_id, state.pending_appeal_id, user_id)
@@ -156,6 +178,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
                 
                 await client.send_message(
                     chat_id=chat_id,
+                    user_id=user_id,
                     text=(
                         f"Заявка #{state.pending_appeal_id} оформлена!\n"
                         f"Специалист: Дежурный {category_display}\n"
@@ -175,6 +198,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
         log.info("Адрес подтвержден через кнопку: user_id=%s, uk_id=%s, uk_name='%s'", user_id, uk_id, uk_name)
         await client.send_message(
             chat_id=chat_id,
+            user_id=user_id,
             text=f"Адрес подтвержден! Обслуживает **{uk_name}**.\nТеперь опишите вашу проблему:"
         )
         
@@ -182,15 +206,15 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
         appeal_id = payload.split("appeal:cancel:")[1]
         log.info("Запрос на отмену заявки #%s от user_id=%s", appeal_id, user_id)
         appeal_service.cancel_appeal(appeal_id)
-        await client.send_message(chat_id=chat_id, text=f"Заявка #{appeal_id} успешно отменена.")
+        await client.send_message(chat_id=chat_id, user_id=user_id, text=f"Заявка #{appeal_id} успешно отменена.")
         
     elif payload.startswith("admin:page:"):
         n = int(payload.split(":")[2])
         log.info("Переключение страницы диспетчера: user_id=%s, страница=%d", user_id, n)
-        await client.send_message(chat_id=chat_id, text=f"Страница списка заявок {n}.")
+        await client.send_message(chat_id=chat_id, user_id=user_id, text=f"Страница списка заявок {n}.")
         
     elif payload == "menu:problem":
         log.info("Пользователь запросил подачу новой проблемы: user_id=%s", user_id)
-        await client.send_message(chat_id=chat_id, text="Пожалуйста, опишите вашу проблему:")
+        await client.send_message(chat_id=chat_id, user_id=user_id, text="Пожалуйста, опишите вашу проблему:")
         state.step = DialogStep.AWAIT_PROBLEM
         conv_store.save(state)

@@ -21,29 +21,53 @@ from src.scheduler import store as scheduler_store, service as scheduler_service
 log = logging.getLogger(__name__)
 
 
+def extract_message_data(update: dict) -> tuple[int, int, str, str]:
+    """
+    Извлечение данных из события создания сообщения (message_created).
+    Возвращает (user_id, chat_id, text, mid).
+    Поддерживает контракт платформы MAX (update['message']), а также вложенный payload.
+    """
+    msg = update.get("message")
+    if not isinstance(msg, dict):
+        msg = update.get("payload", {}).get("message", {}) if isinstance(update.get("payload"), dict) else {}
+
+    sender = msg.get("sender", {}) if isinstance(msg.get("sender"), dict) else {}
+    user_id = sender.get("user_id", 0)
+
+    recipient = msg.get("recipient", {}) if isinstance(msg.get("recipient"), dict) else {}
+    chat_id = recipient.get("chat_id") or user_id
+    if not chat_id:
+        chat_id = update.get("chat_id") or user_id
+
+    body = msg.get("body", {}) if isinstance(msg.get("body"), dict) else {}
+    text = (body.get("text") or "").strip()
+    mid = body.get("mid", "")
+
+    return int(user_id), int(chat_id), text, str(mid)
+
+
 def extract_ids(update: dict) -> tuple[int, int]:
-    """Извлечение идентификатора пользователя и идентификатора чата из события."""
-    payload = update.get("payload", {})
-    if "user" in payload:
-        return payload["user"]["user_id"], payload["chat_id"]
-    msg = payload.get("message", {})
-    user_id = msg.get("sender", {}).get("user_id", 0)
-    chat_id = payload.get("chat_id") or user_id
-    return user_id, chat_id
+    """Извлечение идентификатора пользователя и идентификатора чата из любого типа события."""
+    u_id, c_id, _, _ = extract_message_data(update)
+    if u_id and c_id:
+        return u_id, c_id
+
+    user_obj = update.get("user") or update.get("payload", {}).get("user", {})
+    if isinstance(user_obj, dict):
+        u_id = user_obj.get("user_id", 0)
+    c_id = update.get("chat_id") or update.get("payload", {}).get("chat_id") or u_id
+    return int(u_id), int(c_id)
 
 
 async def handle_message(client: MaxBotClient, update: dict) -> None:
     """Обработка текстового сообщения от пользователя."""
-    user_id, chat_id = extract_ids(update)
-    payload = update.get("payload", {})
-    message = payload.get("message", {})
-    text = message.get("body", {}).get("text", "").strip()
+    user_id, chat_id, text, mid = extract_message_data(update)
     
     if not text:
-        log.debug("Получено пустое текстовое сообщение: user_id=%s, chat_id=%s", user_id, chat_id)
+        log.warning("Получено сообщение без текста: user_id=%s, chat_id=%s, update=%s", user_id, chat_id, update)
         return
 
-    log.info("Получено текстовое сообщение: user_id=%s, chat_id=%s, текст='%s'", user_id, chat_id, text)
+    log.info("Получено текстовое сообщение: user_id=%s, chat_id=%s, текст='%s', mid=%s", user_id, chat_id, text, mid)
         
     # Обработка команд бота
     if text.startswith("/"):
@@ -65,6 +89,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             log.warning("Неизвестная команда: user_id=%s, cmd=%s", user_id, cmd)
             await client.send_message(
                 chat_id=chat_id,
+                user_id=user_id,
                 text=f"Неизвестная команда {cmd}. Список доступных команд: /start, /help, /status"
             )
         return
@@ -87,6 +112,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             
             await client.send_message(
                 chat_id=chat_id,
+                user_id=user_id,
                 text=f"Нашел ваш дом! Обслуживает **{match.uk_name}**.\nТеперь опишите вашу проблему:"
             )
         elif len(matches) > 1 and len(matches) <= 3:
@@ -98,6 +124,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             attachments = [{"type": "inline_keyboard", "payload": {"buttons": buttons}}]
             await client.send_message(
                 chat_id=chat_id,
+                user_id=user_id,
                 text="Найдено несколько похожих адресов. Пожалуйста, выберите ваш:",
                 attachments=attachments
             )
@@ -105,6 +132,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             log.warning("Адрес не найден в реестре: query='%s', user_id=%s", text, user_id)
             await client.send_message(
                 chat_id=chat_id,
+                user_id=user_id,
                 text="Адрес не найден в базе. Попробуйте уточнить (например: «ул. Пушкина, д. 10») или свяжитесь с диспетчерской УК."
             )
             
@@ -125,6 +153,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             emergency_phone = uk_info.emergency_phone if uk_info else "+7 000 000-00-00"
             await client.send_message(
                 chat_id=chat_id,
+                user_id=user_id,
                 text=f"ВНИМАНИЕ: ЭТО АВАРИЯ! Пожалуйста, немедленно свяжитесь с аварийной службой: {emergency_phone}"
             )
             appeal = appeal_service.create_appeal(
@@ -157,6 +186,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             log.info("Найдено доступных смен: %d для категории %s, uk_id=%s", len(windows), state.category, state.uk_id)
             await client.send_message(
                 chat_id=chat_id,
+                user_id=user_id,
                 text="Это зона ответственности УК. Ремонт бесплатный. Выберите удобное время визита мастера:",
                 attachments=[shift_windows_keyboard(formatted_windows)]
             )
@@ -168,6 +198,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             log.info("Зона ответственности жильца (платно): предложение платного вызова user_id=%s", user_id)
             await client.send_message(
                 chat_id=chat_id,
+                user_id=user_id,
                 text="Это зона вашей ответственности (платная услуга от 500 рублей). Вызвать мастера УК?",
                 attachments=[resident_choice_keyboard()]
             )
@@ -180,6 +211,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             conv_store.save(state)
             await client.send_message(
                 chat_id=chat_id,
+                user_id=user_id,
                 text="Уточните, пожалуйста, где именно находится неисправность:",
                 attachments=[clarification_zone_keyboard(state.category)]
             )
@@ -188,5 +220,6 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
         log.info("Получен текст вместо нажатия кнопки: user_id=%s, шаг=%s, текст='%s'", user_id, state.step.value, text)
         await client.send_message(
             chat_id=chat_id,
+            user_id=user_id,
             text="Пожалуйста, воспользуйтесь кнопками в сообщении выше для продолжения."
         )

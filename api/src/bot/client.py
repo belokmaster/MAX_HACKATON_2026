@@ -95,12 +95,13 @@ class MaxBotClient:
             logger.error("send_message: необходимо указать user_id или chat_id")
             return None
             
-        params = {}
-        if user_id:
+        params: dict[str, Any] = {"disable_link_preview": "false"}
+        if user_id and (not chat_id or chat_id == user_id):
             params["user_id"] = str(user_id)
-        else:
+        elif chat_id:
             params["chat_id"] = str(chat_id)
-            params["disable_link_preview"] = "false"
+        elif user_id:
+            params["user_id"] = str(user_id)
 
         payload: dict[str, Any] = {
             "text": text,
@@ -115,9 +116,23 @@ class MaxBotClient:
         preview = text.replace("\n", " ")
         if len(preview) > 60:
             preview = preview[:57] + "..."
-        logger.info("Отправка сообщения в чат %s: '%s' (вложений: %d)", target_id, preview, len(attachments) if attachments else 0)
+        logger.info("Отправка сообщения target=%s (params=%s): '%s' (вложений: %d)", target_id, params, preview, len(attachments) if attachments else 0)
 
-        return await self._rate_limited_send(target_id, "POST", "/messages", params=params, json=payload)
+        res = await self._rate_limited_send(target_id, "POST", "/messages", params=params, json=payload)
+        if res is None:
+            alt_params = None
+            if "chat_id" in params and user_id and str(user_id) != params.get("chat_id"):
+                alt_params = {"user_id": str(user_id), "disable_link_preview": "false"}
+            elif "user_id" in params and chat_id and str(chat_id) != params.get("user_id"):
+                alt_params = {"chat_id": str(chat_id), "disable_link_preview": "false"}
+            elif "chat_id" in params and chat_id and chat_id > 0:
+                alt_params = {"user_id": str(chat_id), "disable_link_preview": "false"}
+
+            if alt_params:
+                logger.info("Повторная попытка отправки с альтернативными параметрами: %s", alt_params)
+                res = await self._rate_limited_send(target_id, "POST", "/messages", params=alt_params, json=payload)
+
+        return res
 
     async def edit_message(self, message_id: str, text: str | None = None, format: str = "markdown", attachments: list[dict] | None = None) -> dict | None:
         """Редактирование ранее отправленного сообщения."""
