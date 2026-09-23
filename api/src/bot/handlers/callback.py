@@ -160,15 +160,21 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
         action_or_window = payload[5:]  # отрезаем префикс "book:"
         
         if action_or_window == "cancel":
-            log.info("Жилец отменил выбор смены для заявки #%s: user_id=%s", state.pending_appeal_id, user_id)
-            if state.pending_appeal_id:
+            if state.step != DialogStep.AWAIT_BOOKING or not state.pending_appeal_id:
+                # Заявка уже была отменена или завершена — игнорируем повторный клик
+                log.info("Повторный book:cancel проигнорирован: user_id=%s, шаг=%s, pending_appeal_id=%s", user_id, state.step, state.pending_appeal_id)
+            else:
+                log.info("Жилец отменил выбор смены для заявки #%s: user_id=%s", state.pending_appeal_id, user_id)
                 appeal_service.cancel_appeal(state.pending_appeal_id)
-            reset_to_problem(state)
-            await client.send_message(chat_id=chat_id, user_id=user_id, text="Оформление заявки отменено.")
+                reset_to_problem(state)
+                await client.send_message(chat_id=chat_id, user_id=user_id, text="Оформление заявки отменено.")
         else:
             window_id = action_or_window
-            log.info("Выбрана смена %s для заявки #%s (user_id=%s)", window_id, state.pending_appeal_id, user_id)
-            if state.pending_appeal_id:
+            if state.step != DialogStep.AWAIT_BOOKING or not state.pending_appeal_id:
+                # Состояние уже сброшено — игнорируем повторный клик
+                log.info("Повторный book:%s проигнорирован: user_id=%s, шаг=%s", window_id, user_id, state.step)
+            else:
+                log.info("Выбрана смена %s для заявки #%s (user_id=%s)", window_id, state.pending_appeal_id, user_id)
                 scheduler_store.book_window(window_id, state.pending_appeal_id)
                 window_label = scheduler_service.get_window_label(window_id)
                 appeal_service.update_window(state.pending_appeal_id, window_id, window_label)
@@ -186,7 +192,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
                         f"Мастер свяжется с вами перед приходом."
                     )
                 )
-            reset_to_problem(state)
+                reset_to_problem(state)
             
     elif payload.startswith("address:"):
         uk_id = payload[8:]

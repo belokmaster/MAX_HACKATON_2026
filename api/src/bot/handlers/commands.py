@@ -136,10 +136,9 @@ async def handle_admin(client: MaxBotClient, update: dict) -> None:
     user_id, chat_id = extract_ids(update)
     settings = get_settings()
     
-    # Проверка прав администратора
+    # Проверка прав администратора — молча игнорируем, не раскрывая существование команды
     if user_id not in settings.ADMIN_USER_IDS:
-        log.warning("Отказ в доступе к /admin: пользователь %s не является администратором", user_id)
-        await client.send_message(chat_id=chat_id, user_id=user_id, text="У вас нет прав для доступа к панели диспетчера.")
+        log.warning("Игнорирование /admin: пользователь %s не является администратором", user_id)
         return
         
     appeals = appeal_service.get_all_appeals()

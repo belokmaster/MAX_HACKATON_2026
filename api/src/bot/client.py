@@ -146,11 +146,11 @@ class MaxBotClient:
         logger.info("Редактирование сообщения mid=%s", message_id)
         return await self._safe_request("PUT", "/messages", params={"message_id": str(message_id)}, json=payload)
 
-    async def answer_callback(self, callback_id: str, notification: str | None = None, message: dict | None = None) -> dict | None:
-        """Ответ на callback от кнопки (обязателен для снятия индикатора загрузки)."""
-        payload = {}
-        if notification:
-            payload["notification"] = notification
+    async def answer_callback(self, callback_id: str, notification: str = "", message: dict | None = None) -> dict | None:
+        """Ответ на callback от кнопки (обязателен для снятия индикатора загрузки).
+        Платформа MAX требует обязательное поле notification или message в теле запроса.
+        """
+        payload: dict = {"notification": notification}
         if message:
             payload["message"] = message
         logger.info("Подтверждение callback_id=%s (POST /answers)", callback_id)

@@ -70,14 +70,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error("Не удалось зарегистрировать вебхук: %s", e)
 
-    # 8. Установка меню команд бота
+    # 8. Установка меню команд бота (только публичные команды, /admin не показываем)
     try:
         logger.info("Установка списка команд бота")
         await bot_client.set_commands([
             {"name": "start", "description": "Главное меню"},
             {"name": "help", "description": "Справка и контакты"},
             {"name": "status", "description": "Мои заявки"},
-            {"name": "admin", "description": "Панель Диспетчера"},
         ])
     except Exception as e:
         logger.error("Не удалось установить команды бота: %s", e)
