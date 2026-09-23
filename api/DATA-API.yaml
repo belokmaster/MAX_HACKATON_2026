@@ -1,0 +1,96 @@
+schemaVersion: "1.0"
+
+solution:
+  name: "Умный Дом (ЖКХ бот)"
+  teamId: "team-placeholder"  # заполнит жюри
+
+api:
+  baseUrl: "https://api.your-domain.com"
+  openapi: "./openapi.yaml"
+  defaultHeaders:
+    Accept: "application/json"
+
+checks:
+  - id: "health"
+    name: "Проверка доступности API"
+    method: "GET"
+    path: "/api/health"
+    role: "public"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["status"]
+    timeoutMs: 5000
+    repeatable: true
+
+  - id: "create-appeal"
+    name: "Создать заявку"
+    method: "POST"
+    path: "/api/appeals"
+    role: "user"
+    request:
+      headers:
+        Content-Type: "application/json"
+      body:
+        user_id: 1
+        chat_id: 1
+        uk_id: "uk_01"
+        category: "plumbing"
+        responsibility: "uk"
+        description: "Тестовая заявка от жюри"
+    expected:
+      statusCodes: [200, 201]
+      contentType: "application/json"
+      requiredFields: ["id", "status", "user_id", "category"]
+    timeoutMs: 5000
+    repeatable: false
+    extract:
+      appealId: "$.id"
+
+  - id: "get-appeal"
+    name: "Получить заявку"
+    method: "GET"
+    path: "/api/appeals/{appealId}"
+    role: "user"
+    dependsOn: ["create-appeal"]
+    request:
+      path:
+        appealId: "${appealId}"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["id", "status"]
+    timeoutMs: 5000
+    repeatable: true
+
+  - id: "update-appeal"
+    name: "Обновить статус заявки"
+    method: "PATCH"
+    path: "/api/appeals/{appealId}"
+    role: "user"
+    dependsOn: ["create-appeal"]
+    request:
+      path:
+        appealId: "${appealId}"
+      headers:
+        Content-Type: "application/json"
+      body:
+        status: "in_progress"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["id", "status"]
+    timeoutMs: 5000
+    repeatable: false
+
+cleanup:
+  - id: "delete-appeal"
+    method: "DELETE"
+    path: "/api/appeals/{appealId}"
+    role: "user"
+    request:
+      path:
+        appealId: "${appealId}"
+    expected:
+      statusCodes: [200, 204, 404]
+    timeoutMs: 5000
