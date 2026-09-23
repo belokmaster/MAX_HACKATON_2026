@@ -31,6 +31,7 @@ async def handle_start(client: MaxBotClient, update: dict) -> None:
     Сбрасывает диалоговое состояние и запрашивает адрес дома.
     """
     user_id, chat_id = extract_ids(update)
+    log.info("Команда /start: сброс состояния диалога для user_id=%s, chat_id=%s", user_id, chat_id)
     state = conv_store.get_or_create(user_id, chat_id)
     
     state.step = DialogStep.AWAIT_ADDRESS
@@ -53,6 +54,7 @@ async def handle_help(client: MaxBotClient, update: dict) -> None:
     """
     user_id, chat_id = extract_ids(update)
     state = conv_store.get(user_id)
+    log.info("Команда /help: запрос справки user_id=%s, привязанная УК=%s", user_id, state.uk_id if state else None)
     
     text = "Бот диспетчерской ЖКХ. Позволяет подать заявку мастеру или вызвать аварийную службу.\n\n"
     if state and state.uk_id:
@@ -73,6 +75,7 @@ async def handle_status(client: MaxBotClient, update: dict) -> None:
     """
     user_id, chat_id = extract_ids(update)
     appeals = appeal_service.get_user_appeals(user_id)
+    log.info("Команда /status: запрос статуса заявок user_id=%s, найдено заявок: %d", user_id, len(appeals))
     
     if not appeals:
         await client.send_message(chat_id=chat_id, text="У вас нет активных заявок.")
@@ -112,10 +115,13 @@ async def handle_admin(client: MaxBotClient, update: dict) -> None:
     
     # Проверка прав администратора
     if user_id not in settings.ADMIN_USER_IDS:
+        log.warning("Отказ в доступе к /admin: пользователь %s не является администратором", user_id)
+        await client.send_message(chat_id=chat_id, text="У вас нет прав для доступа к панели диспетчера.")
         return
         
     appeals = appeal_service.get_all_appeals()
     open_appeals = [a for a in appeals if a.status in ("open", "scheduled")]
+    log.info("Команда /admin: доступ разрешен для admin_id=%s, открытых заявок: %d", user_id, len(open_appeals))
     
     if not open_appeals:
         await client.send_message(chat_id=chat_id, text="Нет открытых заявок.")

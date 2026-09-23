@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Dict
 
 from src.data.specialists import ShiftType, get_specialists, Specialist
+
+logger = logging.getLogger(__name__)
 
 
 # Хранилище бронирований конкретных специалистов:
@@ -164,18 +167,29 @@ def book_window(window_id: str, appeal_id: str) -> ShiftWindow | None:
     _specialist_bookings.setdefault(spec_key, []).append(appeal_id)
 
     win.booked_appeal_ids.append(appeal_id)
+    logger.info(
+        "Заявка #%s распределена на мастера %s (%s) на смену %s %s (занято слотов мастера: %d/%d)",
+        appeal_id, chosen_spec.id, chosen_spec.display_name, date_str, shift_str,
+        len(_specialist_bookings[spec_key]), win.max_capacity
+    )
     return win
 
 
 def unbook_appeal(appeal_id: str) -> None:
     """Освобождение места мастера при отмене заявки."""
+    found = False
     for key, appeal_list in _specialist_bookings.items():
         if appeal_id in appeal_list:
             appeal_list.remove(appeal_id)
+            found = True
+            logger.info("Слот мастера освобожден для заявки #%s в ключе %s", appeal_id, key)
 
     for win in _windows.values():
         if appeal_id in win.booked_appeal_ids:
             win.booked_appeal_ids.remove(appeal_id)
+
+    if not found:
+        logger.debug("Слот для заявки #%s не был найден среди бронирований специалистов", appeal_id)
 
 
 def get_window(window_id: str) -> ShiftWindow | None:

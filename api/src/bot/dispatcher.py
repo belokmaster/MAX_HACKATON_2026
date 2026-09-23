@@ -23,6 +23,7 @@ async def dispatch_update(update: dict[str, Any]) -> None:
     try:
         client = get_client()
         update_type = update.get("update_type")
+        logger.info("Диспетчеризация события платформы MAX: update_type=%s", update_type)
         
         if update_type == "message_created":
             from src.bot.handlers.message import handle_message
@@ -31,11 +32,12 @@ async def dispatch_update(update: dict[str, Any]) -> None:
             from src.bot.handlers.callback import handle_callback
             await handle_callback(client, update)
         elif update_type == "bot_started":
+            logger.info("Пользователь запустил бота (событие bot_started)")
             from src.bot.handlers.commands import handle_start
             await handle_start(client, update)
         elif update_type in ("bot_stopped", "bot_added", "bot_removed"):
-            logger.info(f"Получено сервисное событие {update_type}: {update}")
+            logger.info("Получено сервисное событие %s: %s", update_type, update)
         else:
-            logger.warning(f"Получен неизвестный тип события update_type: {update_type}")
+            logger.warning("Получен неизвестный тип события update_type: %s", update_type)
     except Exception:
-        logger.exception(f"Ошибка при обработке входящего события: {update}")
+        logger.exception("Ошибка при обработке входящего события: %s", update)

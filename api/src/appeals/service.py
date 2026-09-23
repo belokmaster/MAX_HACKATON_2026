@@ -46,6 +46,10 @@ def create_appeal(
     )
     _appeals[appeal_id] = appeal
     _persist()
+    logger.info(
+        "Создана новая заявка #%s: user_id=%s, chat_id=%s, uk_id=%s, категория=%s, ответственность=%s, статус=%s",
+        appeal_id, user_id, chat_id, uk_id, category, responsibility, appeal.status.value
+    )
     return appeal
 
 
@@ -65,15 +69,18 @@ def update_status(appeal_id: str, status: AppealStatus | str) -> Appeal | None:
     """Обновление статуса заявки с сохранением на диске."""
     appeal = _appeals.get(appeal_id)
     if appeal is None:
+        logger.warning("Попытка обновить статус несуществующей заявки #%s", appeal_id)
         return None
     if isinstance(status, str):
         try:
             status = AppealStatus(status.lower())
         except (ValueError, TypeError):
             pass
+    prev_status = appeal.status
     appeal.status = status
     appeal.updated_at = datetime.now().isoformat()
     _persist()
+    logger.info("Статус заявки #%s изменен: %s -> %s", appeal_id, prev_status, appeal.status)
     return appeal
 
 
@@ -81,12 +88,14 @@ def update_window(appeal_id: str, window_id: str, window_label: str) -> Appeal |
     """Назначение смены мастера и перевод заявки в статус SCHEDULED."""
     appeal = _appeals.get(appeal_id)
     if appeal is None:
+        logger.warning("Попытка назначить смену для несуществующей заявки #%s", appeal_id)
         return None
     appeal.window_id = window_id
     appeal.window_label = window_label
     appeal.status = AppealStatus.SCHEDULED
     appeal.updated_at = datetime.now().isoformat()
     _persist()
+    logger.info("Назначена смена для заявки #%s: window_id=%s, время='%s', статус=SCHEDULED", appeal_id, window_id, window_label)
     return appeal
 
 
@@ -94,6 +103,7 @@ def cancel_appeal(appeal_id: str) -> Appeal | None:
     """Отмена заявки жильцом или диспетчером с освобождением забронированной смены мастера."""
     appeal = _appeals.get(appeal_id)
     if appeal is None:
+        logger.warning("Попытка отмены несуществующей заявки #%s", appeal_id)
         return None
     appeal.status = AppealStatus.CANCELLED
     appeal.updated_at = datetime.now().isoformat()
@@ -101,8 +111,9 @@ def cancel_appeal(appeal_id: str) -> Appeal | None:
     try:
         from src.scheduler.store import unbook_appeal
         unbook_appeal(appeal_id)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("Ошибка при освобождении слота мастера для заявки #%s: %s", appeal_id, e)
+    logger.info("Заявка #%s успешно отменена (слот мастера освобожден)", appeal_id)
     return appeal
 
 

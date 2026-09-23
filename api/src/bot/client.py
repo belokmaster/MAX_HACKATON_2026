@@ -112,6 +112,11 @@ class MaxBotClient:
         if reply_to_mid:
             payload["link"] = {"type": "reply", "mid": reply_to_mid}
 
+        preview = text.replace("\n", " ")
+        if len(preview) > 60:
+            preview = preview[:57] + "..."
+        logger.info("Отправка сообщения в чат %s: '%s' (вложений: %d)", target_id, preview, len(attachments) if attachments else 0)
+
         return await self._rate_limited_send(target_id, "POST", "/messages", params=params, json=payload)
 
     async def edit_message(self, message_id: str, text: str | None = None, format: str = "markdown", attachments: list[dict] | None = None) -> dict | None:
@@ -123,6 +128,7 @@ class MaxBotClient:
         if attachments is not None:
             payload["attachments"] = attachments
             
+        logger.info("Редактирование сообщения mid=%s", message_id)
         return await self._safe_request("PUT", "/messages", params={"message_id": str(message_id)}, json=payload)
 
     async def answer_callback(self, callback_id: str, notification: str | None = None, message: dict | None = None) -> dict | None:
@@ -132,6 +138,7 @@ class MaxBotClient:
             payload["notification"] = notification
         if message:
             payload["message"] = message
+        logger.info("Подтверждение callback_id=%s (POST /answers)", callback_id)
         return await self._safe_request("POST", "/answers", params={"callback_id": str(callback_id)}, json=payload)
 
     async def send_action(self, chat_id: int, action: str = "typing_on") -> None:
