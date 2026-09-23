@@ -3,7 +3,7 @@ services:
     build: ./api
     env_file: .env
     volumes:
-      - ./certs:/app/certs:ro
+      - ./certs:/app/certs:ro,Z
       - api_data:/app/data
     networks: [internal]
     restart: unless-stopped
@@ -18,8 +18,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
       - caddy_data:/data
       - caddy_config:/config
     networks: [internal]

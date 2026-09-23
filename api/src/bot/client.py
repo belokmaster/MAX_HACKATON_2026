@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -12,13 +13,19 @@ logger = logging.getLogger(__name__)
 class MaxBotClient:
     def __init__(self):
         self.settings = get_settings()
+        cert_path = self.settings.SSL_CERT_PATH
+        verify: Any = cert_path
+        if cert_path and not Path(cert_path).exists():
+            logger.warning("Файл сертификата %s не найден, используется системное хранилище CA", cert_path)
+            verify = True
+
         self.client = httpx.AsyncClient(
             base_url=self.settings.API_BASE_URL,
             headers={
                 "Authorization": self.settings.BOT_TOKEN,
                 "Content-Type": "application/json",
             },
-            verify=self.settings.SSL_CERT_PATH,
+            verify=verify,
         )
         self._chat_locks: dict[int, asyncio.Lock] = {}
 
