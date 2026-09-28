@@ -13,3 +13,9 @@ build/
 *.log
 *.pyc
 *.local
+
+# Runtime data (JSON persistence, not for git)
+api/src/data/users.json
+api/src/data/appeals.json
+data/users.json
+data/appeals.json

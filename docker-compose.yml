@@ -1,0 +1,38 @@
+services:
+  api:
+    build: ./api
+    env_file: .env
+    volumes:
+      - ./certs:/app/certs:ro,Z
+      - api_data:/app/data
+    networks: [internal]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal]
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  api_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge
