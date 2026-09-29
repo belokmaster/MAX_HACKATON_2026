@@ -38,13 +38,23 @@ def clarification_zone_keyboard(category: str) -> dict[str, Any]:
 def shift_windows_keyboard(windows: list[dict[str, Any]]) -> dict[str, Any]:
     """
     Клавиатура для выбора смены мастера.
-    Каждая доступная смена выводится отдельной строкой.
+    Каждая доступная смена выводится отдельной строкой. Если свободных смен
+    нет, пользователь может передать заявку диспетчеру без выбора времени.
     Последняя кнопка — Отмена.
     """
     buttons = []
     for window in windows[:6]:
         buttons.append([
             {"type": "callback", "text": window["label"], "payload": f"book:{window['window_id']}"}
+        ])
+
+    if not windows:
+        buttons.append([
+            {
+                "type": "callback",
+                "text": "Вызвать мастера",
+                "payload": "book:dispatcher",
+            }
         ])
     
     buttons.append([

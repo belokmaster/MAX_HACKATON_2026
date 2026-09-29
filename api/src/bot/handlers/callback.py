@@ -169,6 +169,41 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
                 appeal_service.cancel_appeal(state.pending_appeal_id)
                 reset_to_problem(state)
                 await client.send_message(chat_id=chat_id, user_id=user_id, text="Оформление заявки отменено.")
+        elif action_or_window == "dispatcher":
+            if state.step != DialogStep.AWAIT_BOOKING or not state.pending_appeal_id:
+                log.info(
+                    "Повторный book:dispatcher проигнорирован: user_id=%s, шаг=%s, pending_appeal_id=%s",
+                    user_id,
+                    state.step,
+                    state.pending_appeal_id,
+                )
+            else:
+                appeal = appeal_service.get_appeal(state.pending_appeal_id)
+                if appeal is None or appeal.user_id != user_id:
+                    log.warning(
+                        "Не удалось передать заявку #%s диспетчеру от user_id=%s",
+                        state.pending_appeal_id,
+                        user_id,
+                    )
+                    await client.send_message(
+                        chat_id=chat_id,
+                        user_id=user_id,
+                        text="Не удалось найти заявку. Попробуйте оформить обращение заново.",
+                    )
+                    return
+
+                uk_info = get_uk_by_id(state.uk_id) if state.uk_id else None
+                uk_phone = uk_info.uk_phone if uk_info else "телефон управляющей компании"
+                await client.send_message(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    text=(
+                        f"Заявка #{appeal.id} передана диспетчеру УК. "
+                        f"С вами свяжутся для согласования времени.\n"
+                        f"Телефон УК: {uk_phone}"
+                    ),
+                )
+                reset_to_problem(state)
         else:
             window_id = action_or_window
             if state.step != DialogStep.AWAIT_BOOKING or not state.pending_appeal_id:

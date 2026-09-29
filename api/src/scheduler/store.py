@@ -100,6 +100,9 @@ def get_available_windows(
     Возвращает доступные для записи смены мастеров, отсортированные по дате и времени.
     Учитывает занятость мастеров, работающих на несколько УК одновременно.
     """
+    if str(speciality).lower() in ("", "unknown"):
+        speciality = "general"
+
     _ensure_windows(speciality, uk_id, n_days, capacity)
     today = date.today()
     max_date = today + timedelta(days=n_days)
