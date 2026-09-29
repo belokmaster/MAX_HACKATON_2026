@@ -168,16 +168,11 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
                 user_id=user_id,
                 text=f"ВНИМАНИЕ: ЭТО АВАРИЯ! Пожалуйста, немедленно свяжитесь с аварийной службой: {emergency_phone}"
             )
-            appeal = appeal_service.create_appeal(
-                user_id=user_id,
-                chat_id=chat_id,
-                uk_id=state.uk_id or "uk_01",
-                category=state.category,
-                responsibility="emergency",
-                description=text,
-            )
-            log.info("Создана аварийная заявка #%s для user_id=%s", appeal.id, user_id)
             state.step = DialogStep.IDLE
+            state.pending_appeal_id = None
+            state.category = None
+            state.responsibility = None
+            state.original_text = ""
             conv_store.save(state)
             
         elif result.responsibility == Responsibility.UK and result.confidence >= 0.8:

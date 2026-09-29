@@ -57,3 +57,57 @@ class ClassifyResult:
     def needs_clarification(self) -> bool:
         """Флаг необходимости уточнения зоны ответственности или категории."""
         return self.confidence < 0.7 or self.responsibility == Responsibility.UNKNOWN
+
+
+CATEGORY_RU: dict[str, str] = {
+    "electric": "Электрика",
+    "plumbing": "Сантехника",
+    "elevator": "Лифт",
+    "carpentry": "Двери, окна, домофон",
+    "general": "Общедомовое имущество",
+    "emergency": "Авария",
+    "unknown": "Не определена",
+}
+
+ZONE_RU: dict[str, str] = {
+    "uk": "УК (бесплатно)",
+    "resident": "жилец (платно)",
+    "emergency": "аварийная служба",
+    "unknown": "уточняет диспетчер",
+}
+
+STATUS_RU: dict[str, str] = {
+    "open": "Открыта",
+    "scheduled": "Назначена",
+    "in_progress": "В работе",
+    "done": "Завершена",
+    "cancelled": "Отменена",
+    "needs_clarification": "Требует уточнения",
+}
+
+SPECIALIST_RU: dict[str, str] = {
+    "electric": "Дежурный электрик",
+    "plumbing": "Дежурный сантехник",
+    "elevator": "Мастер по лифтам",
+    "carpentry": "Плотник / мастер по дверям",
+    "general": "Мастер по общедомовому имуществу",
+}
+
+
+def format_category_ru(cat: str | Category | None) -> str:
+    """Возвращает русское наименование категории."""
+    if not cat:
+        return "Общая"
+    val = (cat.value if hasattr(cat, "value") else str(cat)).lower()
+    return CATEGORY_RU.get(val, str(cat))
+
+
+def format_specialist_ru(cat: str | Category | None) -> str:
+    """Возвращает наименование специалиста на русском языке."""
+    if not cat:
+        return "Дежурный мастер"
+    val = (cat.value if hasattr(cat, "value") else str(cat)).lower()
+    if val in SPECIALIST_RU:
+        return SPECIALIST_RU[val]
+    cat_ru = format_category_ru(cat).lower()
+    return f"Дежурный мастер ({cat_ru})"

@@ -177,6 +177,58 @@ async def handle_status(client: MaxBotClient, update: dict) -> None:
     if closed_count:
         await client.send_message(chat_id=chat_id, user_id=user_id, text=f"Закрытых заявок: {closed_count}.")
 
+PAGE_SIZE = 5
+
+
+async def render_admin_page(client: MaxBotClient, user_id: int, chat_id: int, page: int = 0) -> None:
+    """Отображение страницы списка открытых заявок для администратора с пагинацией."""
+    settings = get_settings()
+    if user_id not in settings.ADMIN_USER_IDS:
+        log.warning("Отказ в доступе к панели диспетчера: user_id=%s не админ", user_id)
+        return
+
+    appeals = appeal_service.get_all_appeals()
+    open_appeals = [a for a in appeals if _val(a.status) in CANCELLABLE]
+    log.info("Панель диспетчера: user_id=%s, страница=%d, открытых заявок: %d", user_id, page, len(open_appeals))
+
+    if not open_appeals:
+        await client.send_message(chat_id=chat_id, user_id=user_id, text="Нет активных заявок.")
+        return
+
+    total = len(open_appeals)
+    max_pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+    page = max(0, min(page, max_pages - 1))
+    start_idx = page * PAGE_SIZE
+    chunk = open_appeals[start_idx : start_idx + PAGE_SIZE]
+
+    lines = [f"Панель диспетчера (страница {page + 1} из {max_pages}, всего заявок: {total}):\n"]
+    for a in chunk:
+        cat_ru = CATEGORY_RU.get(str(a.category or "unknown").lower(), str(a.category))
+        zone_ru = ZONE_RU.get(str(a.responsibility or "unknown").lower(), str(a.responsibility))
+        status_ru = STATUS_RU.get(_val(a.status), _val(a.status))
+        shift = a.window_label or "не назначена"
+        desc = (a.description[:50] + "...") if len(a.description) > 50 else a.description
+        lines.append(
+            f"Заявка #{a.id} · {cat_ru} · {zone_ru}\n"
+            f"Статус: {status_ru} · Смена: {shift}\n"
+            f"Суть: {desc}\n"
+        )
+
+    text = "\n".join(lines)
+
+    buttons = []
+    nav_row = []
+    if page > 0:
+        nav_row.append({"type": "callback", "text": "Назад", "payload": f"admin:page:{page - 1}"})
+    if page < max_pages - 1:
+        nav_row.append({"type": "callback", "text": "Вперёд", "payload": f"admin:page:{page + 1}"})
+    if nav_row:
+        buttons.append(nav_row)
+
+    attachments = [{"type": "inline_keyboard", "payload": {"buttons": buttons}}] if buttons else None
+    await client.send_message(chat_id=chat_id, user_id=user_id, text=text, attachments=attachments)
+
+
 async def handle_admin(client: MaxBotClient, update: dict) -> None:
     """
     Панель диспетчера (/admin) для пользователей из списка ADMIN_USER_IDS.
@@ -184,36 +236,13 @@ async def handle_admin(client: MaxBotClient, update: dict) -> None:
     """
     user_id, chat_id = extract_ids(update)
     settings = get_settings()
-    
+
     # Проверка прав администратора — молча игнорируем, не раскрывая существование команды
     if user_id not in settings.ADMIN_USER_IDS:
         log.warning("Игнорирование /admin: пользователь %s не является администратором", user_id)
         return
-        
-    appeals = appeal_service.get_all_appeals()
-    open_appeals = [a for a in appeals if _val(a.status) in CANCELLABLE]
-    log.info("Команда /admin: доступ разрешен для admin_id=%s, открытых заявок: %d", user_id, len(open_appeals))
-    
-    if not open_appeals:
-        await client.send_message(chat_id=chat_id, user_id=user_id, text="Нет открытых заявок.")
-        return
-        
-    text = "Список открытых заявок:\n"
-    for a in open_appeals[:10]:
-        text += f"#{a.id} | Пользователь: {a.user_id} | {a.category} | {a.responsibility} | {a.status} | {a.window_label or 'без смены'}\n"
-        
-    attachments = []
-    if len(open_appeals) > 10:
-        attachments.append({
-            "type": "inline_keyboard",
-            "payload": {
-                "buttons": [
-                    [{"type": "callback", "text": "Следующая страница", "payload": "admin:page:1"}]
-                ]
-            }
-        })
-        
-    await client.send_message(chat_id=chat_id, user_id=user_id, text=text, attachments=attachments if attachments else None)
+
+    await render_admin_page(client, user_id, chat_id, page=0)
 
 
 
