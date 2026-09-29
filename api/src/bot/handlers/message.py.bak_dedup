@@ -20,11 +20,7 @@ from src.scheduler import store as scheduler_store, service as scheduler_service
 from src.bot.keyboards import category_keyboard, elements_keyboard
 from src.classifier.categories import Category
 
-from src.bot.dedup import SeenCache
-
 log = logging.getLogger(__name__)
-
-_seen = SeenCache()
 
 
 def extract_message_data(update: dict) -> tuple[int, int, str, str]:
@@ -74,9 +70,6 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
         return
 
     log.info("Получено текстовое сообщение: user_id=%s, chat_id=%s, текст='%s', mid=%s", user_id, chat_id, text, mid)
-    if mid and _seen.seen(f"m:{mid}"):
-        log.info("Дубликат сообщения mid=%s проигнорирован: user_id=%s", mid, user_id)
-        return
         
     # Обработка команд бота
     if text.startswith("/"):

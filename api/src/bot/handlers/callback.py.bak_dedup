@@ -16,11 +16,7 @@ from src.bot.keyboards import elements_keyboard
 from src.classifier.categories import Responsibility
 from src.classifier.elements import find_element
 
-from src.bot.dedup import SeenCache
-
 log = logging.getLogger(__name__)
-
-_seen = SeenCache()
 
 
 def extract_callback(update: dict) -> tuple[int, int, str, str, str]:
@@ -160,10 +156,6 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
     user_id, chat_id, callback_id, payload, message_id = extract_callback(update)
     log.info("Получен callback: user_id=%s, chat_id=%s, payload='%s', callback_id=%s", user_id, chat_id, payload, callback_id)
     
-    if callback_id and _seen.seen(f"c:{callback_id}"):
-        log.info("Дубликат callback %s проигнорирован: user_id=%s", callback_id, user_id)
-        return
-
     # КРИТИЧНО: всегда первым делом подтверждаем получение callback
     await client.answer_callback(callback_id)
     
@@ -390,7 +382,7 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
         if appeal is None or appeal.user_id != user_id:
             log.warning("Отклонена отмена чужой или неизвестной заявки #%s от user_id=%s", appeal_id, user_id)
             await client.send_message(chat_id=chat_id, user_id=user_id, text="Заявка не найдена.")
-        elif appeal.status not in (AppealStatus.OPEN, AppealStatus.SCHEDULED, AppealStatus.NEEDS_CLARIFICATION):
+        elif appeal.status not in (AppealStatus.OPEN, AppealStatus.SCHEDULED):
             await client.send_message(chat_id=chat_id, user_id=user_id, text="Эту заявку уже нельзя отменить.")
         else:
             appeal_service.cancel_appeal(appeal_id)
