@@ -37,7 +37,10 @@ def validate_init_data(init_data_raw: str, bot_token: str, max_age: int = 86400)
     except (ValueError, TypeError):
         raise ValueError("Некорректный параметр auth_date")
 
-    if time.time() - auth_date > max_age:
+    current_time = time.time()
+    if auth_date > current_time + 60:
+        raise ValueError("Параметр auth_date находится в будущем")
+    if current_time - auth_date > max_age:
         raise ValueError("Срок действия init_data истек")
 
     check_pairs = [f"{k}={params[k]}" for k in sorted(params.keys())]

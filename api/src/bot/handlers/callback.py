@@ -10,6 +10,7 @@ from src.conversation.state import DialogStep
 from src.data.housing import get_uk_by_id
 from src.bot.keyboards import shift_windows_keyboard, resident_choice_keyboard
 from src.appeals import service as appeal_service
+from src.appeals.schemas import AppealStatus
 from src.scheduler import store as scheduler_store, service as scheduler_service
 
 log = logging.getLogger(__name__)
@@ -175,7 +176,51 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
                 log.info("Повторный book:%s проигнорирован: user_id=%s, шаг=%s", window_id, user_id, state.step)
             else:
                 log.info("Выбрана смена %s для заявки #%s (user_id=%s)", window_id, state.pending_appeal_id, user_id)
-                scheduler_store.book_window(window_id, state.pending_appeal_id)
+                window_parts = window_id.split(":")
+                expected_speciality = (state.category or "general").lower()
+                expected_uk_id = state.uk_id or "uk_01"
+                if (
+                    len(window_parts) != 4
+                    or window_parts[2].lower() != expected_speciality
+                    or window_parts[3] != expected_uk_id
+                ):
+                    log.warning(
+                        "Отклонена смена, не соответствующая заявке #%s: window_id=%s",
+                        state.pending_appeal_id,
+                        window_id,
+                    )
+                    await client.send_message(
+                        chat_id=chat_id,
+                        user_id=user_id,
+                        text="Эта смена недоступна для текущей заявки. Выберите время из предложенного списка.",
+                    )
+                    return
+                booked_window = scheduler_store.book_window(window_id, state.pending_appeal_id)
+                if booked_window is None:
+                    log.info(
+                        "Смена %s уже недоступна для заявки #%s: user_id=%s",
+                        window_id,
+                        state.pending_appeal_id,
+                        user_id,
+                    )
+                    await client.send_message(
+                        chat_id=chat_id,
+                        user_id=user_id,
+                        text="Эта смена уже занята. Пожалуйста, выберите другое доступное время.",
+                        attachments=[
+                            shift_windows_keyboard(
+                                scheduler_service.format_windows_for_chat(
+                                    scheduler_store.get_available_windows(
+                                        state.category or "general",
+                                        state.uk_id or "uk_01",
+                                        3,
+                                        4,
+                                    )
+                                )
+                            )
+                        ],
+                    )
+                    return
                 window_label = scheduler_service.get_window_label(window_id)
                 appeal_service.update_window(state.pending_appeal_id, window_id, window_label)
                 
@@ -211,8 +256,15 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
     elif payload.startswith("appeal:cancel:"):
         appeal_id = payload.split("appeal:cancel:")[1]
         log.info("Запрос на отмену заявки #%s от user_id=%s", appeal_id, user_id)
-        appeal_service.cancel_appeal(appeal_id)
-        await client.send_message(chat_id=chat_id, user_id=user_id, text=f"Заявка #{appeal_id} успешно отменена.")
+        appeal = appeal_service.get_appeal(appeal_id)
+        if appeal is None or appeal.user_id != user_id:
+            log.warning("Отклонена отмена чужой или неизвестной заявки #%s от user_id=%s", appeal_id, user_id)
+            await client.send_message(chat_id=chat_id, user_id=user_id, text="Заявка не найдена.")
+        elif appeal.status not in (AppealStatus.OPEN, AppealStatus.SCHEDULED):
+            await client.send_message(chat_id=chat_id, user_id=user_id, text="Эту заявку уже нельзя отменить.")
+        else:
+            appeal_service.cancel_appeal(appeal_id)
+            await client.send_message(chat_id=chat_id, user_id=user_id, text=f"Заявка #{appeal_id} успешно отменена.")
         
     elif payload.startswith("admin:page:"):
         n = int(payload.split(":")[2])

@@ -72,7 +72,7 @@ class ShiftWindow:
 _windows: Dict[str, ShiftWindow] = {}
 
 
-def _ensure_windows(speciality: str, uk_id: str, n_days: int, capacity: int) -> None:
+def _ensure_windows(speciality: str, uk_id: str, n_days: int = 3, capacity: int = 4) -> None:
     """Создание слотов смен ShiftWindow на сегодня и следующие n_days дней при их отсутствии."""
     today = date.today()
     for day_offset in range(n_days + 1):
@@ -130,6 +130,15 @@ def book_window(window_id: str, appeal_id: str) -> ShiftWindow | None:
     if len(parts) < 4:
         return None
     date_str, shift_str, speciality, uk_id = parts[0], parts[1], parts[2], parts[3]
+
+    try:
+        requested_date = date.fromisoformat(date_str)
+    except ValueError:
+        return None
+
+    today = date.today()
+    if requested_date < today or requested_date > today + timedelta(days=3):
+        return None
 
     if win is None:
         _ensure_windows(speciality, uk_id)
