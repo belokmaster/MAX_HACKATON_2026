@@ -94,3 +94,38 @@ def main_menu_keyboard() -> dict[str, Any]:
             ]
         }
     }
+
+
+# ---- уточнение категории и элемента (замена вопроса «подъезд/квартира») ----
+from src.classifier.categories import Category as _Category
+from src.classifier.elements import elements_for as _elements_for
+
+_CATEGORY_BUTTONS = [
+    (_Category.PLUMBING, "Вода / сантехника / отопление"),
+    (_Category.ELECTRIC, "Электричество"),
+    (_Category.ELEVATOR, "Лифт"),
+    (_Category.CARPENTRY, "Двери / окна / домофон"),
+    (_Category.GENERAL, "Другое (крыша, двор, подвал)"),
+]
+
+
+def _inline(rows: list) -> dict[str, Any]:
+    return {"type": "inline_keyboard", "payload": {"buttons": rows}}
+
+
+def category_keyboard() -> dict[str, Any]:
+    """Выбор темы обращения, когда текст не распознан."""
+    return _inline([
+        [{"type": "callback", "text": title, "payload": f"cat:{cat.value}"}]
+        for cat, title in _CATEGORY_BUTTONS
+    ])
+
+
+def elements_keyboard(category: str) -> dict[str, Any]:
+    """Выбор элемента, который вышел из строя (по нему определяется зона)."""
+    rows = [
+        [{"type": "callback", "text": e.label, "payload": f"item:{e.key}"}]
+        for e in _elements_for(category)
+    ]
+    rows.append([{"type": "callback", "text": "Не знаю / другое", "payload": "item:unknown"}])
+    return _inline(rows)

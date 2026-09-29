@@ -9,6 +9,8 @@ class DialogStep(str, Enum):
     AWAIT_ADDRESS = "await_address"   # Ожидание ввода адреса дома
     AWAIT_PROBLEM = "await_problem"   # Ожидание описания проблемы
     CLARIFYING = "clarifying"         # Ожидание уточнения зоны ответственности кнопками
+    CLARIFY_CATEGORY = "clarify_category"  # выбор категории кнопками
+    CLARIFY_ITEM = "clarify_item"          # выбор элемента (что сломалось)
     AWAIT_BOOKING = "await_booking"   # Ожидание выбора смены мастера
     IDLE = "idle"                     # Заявка создана, готов к приему новой проблемы
 

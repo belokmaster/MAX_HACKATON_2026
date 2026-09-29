@@ -168,7 +168,7 @@ def classify(text: str) -> ClassifyResult:
             category=Category.UNKNOWN,
             responsibility=Responsibility.UNKNOWN,
             confidence=0.0,
-            clarification_question="Уточните: неисправность в подъезде (общедомовое) или в вашей квартире?",
+            clarification_question=None,
         )
 
     # 2. Проверка на аварийную ситуацию (наивысший приоритет)

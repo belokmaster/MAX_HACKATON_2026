@@ -17,6 +17,8 @@ from src.classifier.engine import classify
 from src.classifier.categories import Responsibility
 from src.appeals import service as appeal_service
 from src.scheduler import store as scheduler_store, service as scheduler_service
+from src.bot.keyboards import category_keyboard, elements_keyboard
+from src.classifier.categories import Category
 
 log = logging.getLogger(__name__)
 
@@ -136,7 +138,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
                 text="Адрес не найден в базе. Попробуйте уточнить (например: «ул. Пушкина, д. 10») или свяжитесь с диспетчерской УК."
             )
             
-    elif state.step == DialogStep.AWAIT_PROBLEM:
+    elif state.step in (DialogStep.AWAIT_PROBLEM, DialogStep.CLARIFY_CATEGORY, DialogStep.CLARIFY_ITEM):
         state.original_text = text
         log.info("Классификация описания проблемы: user_id=%s, текст='%s'", user_id, text)
         result = await classify(text)
@@ -150,7 +152,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
         if result.responsibility == Responsibility.EMERGENCY:
             log.warning("Обнаружена АВАРИЙНАЯ ситуация: user_id=%s, chat_id=%s, текст='%s'", user_id, chat_id, text)
             uk_info = get_uk_by_id(state.uk_id) if state.uk_id else None
-            emergency_phone = uk_info.emergency_phone if uk_info else "+7 000 000-00-00"
+            emergency_phone = uk_info.emergency_phone if uk_info else "112"
             await client.send_message(
                 chat_id=chat_id,
                 user_id=user_id,
@@ -206,19 +208,27 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             conv_store.save(state)
             
         else:
-            log.info("Неоднозначная проблема: требуется уточнение зоны у user_id=%s (категория=%s)", user_id, state.category)
-            state.step = DialogStep.CLARIFYING
-            conv_store.save(state)
-            await client.send_message(
-                chat_id=chat_id,
-                user_id=user_id,
-                text=(
-                    "Уточните, кто отвечает за неисправность. Важно: общедомовая система "
-                    "может находиться внутри квартиры:"
-                ),
-                attachments=[clarification_zone_keyboard(state.category)]
-            )
-            
+            log.info("Неоднозначная проблема: user_id=%s, категория=%s", user_id, state.category)
+            state.clarification_step = 0
+            if result.category == Category.UNKNOWN:
+                state.step = DialogStep.CLARIFY_CATEGORY
+                conv_store.save(state)
+                await client.send_message(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    text="Не совсем понял, что случилось. Выберите тему или опишите проблему подробнее:",
+                    attachments=[category_keyboard()],
+                )
+            else:
+                state.step = DialogStep.CLARIFY_ITEM
+                conv_store.save(state)
+                await client.send_message(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    text="Что именно вышло из строя?",
+                    attachments=[elements_keyboard(state.category)],
+                )
+
     elif state.step in [DialogStep.CLARIFYING, DialogStep.AWAIT_BOOKING]:
         log.info("Получен текст вместо нажатия кнопки: user_id=%s, шаг=%s, текст='%s'", user_id, state.step.value, text)
         await client.send_message(
