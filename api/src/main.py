@@ -75,7 +75,6 @@ async def lifespan(app: FastAPI):
         logger.info("Установка списка команд бота")
         await bot_client.set_commands([
             {"name": "start", "description": "Главное меню"},
-            {"name": "address", "description": "Сменить адрес дома"},
             {"name": "help", "description": "Справка и контакты"},
             {"name": "status", "description": "Мои заявки"},
         ])

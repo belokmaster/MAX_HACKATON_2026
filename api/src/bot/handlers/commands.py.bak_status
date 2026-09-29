@@ -92,38 +92,6 @@ async def handle_help(client: MaxBotClient, update: dict) -> None:
     await client.send_message(chat_id=chat_id, user_id=user_id, text=text)
 
 
-CATEGORY_RU = {
-    "electric": "Электрика",
-    "plumbing": "Сантехника",
-    "elevator": "Лифт",
-    "carpentry": "Двери, окна, домофон",
-    "general": "Общедомовое имущество",
-    "emergency": "Авария",
-    "unknown": "Не определена",
-}
-ZONE_RU = {
-    "uk": "УК (бесплатно)",
-    "resident": "жилец (платно)",
-    "emergency": "аварийная служба",
-    "unknown": "уточняет диспетчер",
-}
-STATUS_RU = {
-    "open": "Открыта",
-    "scheduled": "Назначена",
-    "in_progress": "В работе",
-    "done": "Завершена",
-    "cancelled": "Отменена",
-    "needs_clarification": "Требует уточнения",
-}
-CANCELLABLE = ("open", "scheduled", "needs_clarification")
-CLOSED = ("done", "cancelled")
-
-
-def _val(x) -> str:
-    """Значение enum или строки в нижнем регистре ('open', а не 'AppealStatus.OPEN')."""
-    return str(getattr(x, "value", x)).lower()
-
-
 async def handle_status(client: MaxBotClient, update: dict) -> None:
     """
     Просмотр статуса активных заявок пользователя (/status).
@@ -136,34 +104,19 @@ async def handle_status(client: MaxBotClient, update: dict) -> None:
         await client.send_message(chat_id=chat_id, user_id=user_id, text="У вас нет активных заявок.")
         return
         
-    active = [a for a in appeals if _val(a.status) not in CLOSED]
-    closed_count = len(appeals) - len(active)
+    for appeal in appeals:
+        status_ru = {
+            "open": "Открыта",
+            "scheduled": "Назначена",
+            "in_progress": "В работе",
+            "done": "Завершена",
+            "cancelled": "Отменена",
+            "needs_clarification": "Требует уточнения",
+        }.get(str(appeal.status).lower(), str(appeal.status))
 
-    if not active:
-        await client.send_message(
-            chat_id=chat_id, user_id=user_id,
-            text=f"Активных заявок нет. Закрытых заявок: {closed_count}.",
-        )
-        return
-
-    for appeal in active:
-        status = _val(appeal.status)
-        zone = str(appeal.responsibility or "unknown").lower()
-        category_ru = CATEGORY_RU.get(str(appeal.category or "unknown").lower(), str(appeal.category))
-        zone_ru = ZONE_RU.get(zone, zone)
-        if zone == "emergency":
-            shift = "аварийная служба уведомлена"
-        else:
-            shift = appeal.window_label or "не назначена"
-
-        text = (
-            f"Заявка #{appeal.id}\n"
-            f"Тема: {category_ru} · Зона: {zone_ru}\n"
-            f"Статус: {STATUS_RU.get(status, status)}\n"
-            f"Смена: {shift}"
-        )
+        text = f"Заявка #{appeal.id} | Категория: {appeal.category} | Статус: {status_ru} | Смена: {appeal.window_label or 'без смены'}"
         attachments = []
-        if status in CANCELLABLE:
+        if appeal.status in ("open", "scheduled"):
             attachments.append({
                 "type": "inline_keyboard",
                 "payload": {
@@ -174,8 +127,6 @@ async def handle_status(client: MaxBotClient, update: dict) -> None:
             })
         await client.send_message(chat_id=chat_id, user_id=user_id, text=text, attachments=attachments if attachments else None)
 
-    if closed_count:
-        await client.send_message(chat_id=chat_id, user_id=user_id, text=f"Закрытых заявок: {closed_count}.")
 
 async def handle_admin(client: MaxBotClient, update: dict) -> None:
     """
@@ -191,7 +142,7 @@ async def handle_admin(client: MaxBotClient, update: dict) -> None:
         return
         
     appeals = appeal_service.get_all_appeals()
-    open_appeals = [a for a in appeals if _val(a.status) in CANCELLABLE]
+    open_appeals = [a for a in appeals if a.status in ("open", "scheduled")]
     log.info("Команда /admin: доступ разрешен для admin_id=%s, открытых заявок: %d", user_id, len(open_appeals))
     
     if not open_appeals:
