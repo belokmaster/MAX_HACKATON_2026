@@ -12,7 +12,7 @@ from src.bot.client import MaxBotClient
 from src.bot.keyboards import shift_windows_keyboard, clarification_zone_keyboard, resident_choice_keyboard
 from src.conversation import store as conv_store
 from src.conversation.state import DialogStep
-from src.data.housing import find_uk, get_uk_by_id, strip_demo_city
+from src.data.housing import find_uk, get_uk_by_id
 from src.classifier.engine import classify
 from src.classifier.categories import Responsibility
 from src.appeals import service as appeal_service
@@ -84,9 +84,6 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
         elif cmd == "/status":
             from src.bot.handlers.commands import handle_status
             await handle_status(client, update)
-        elif cmd == "/address":
-            from src.bot.handlers.commands import handle_address
-            await handle_address(client, update)
         elif cmd == "/admin":
             from src.bot.handlers.commands import handle_admin
             await handle_admin(client, update)
@@ -95,7 +92,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             await client.send_message(
                 chat_id=chat_id,
                 user_id=user_id,
-                text=f"Неизвестная команда {cmd}. Список доступных команд: /start, /address, /help, /status"
+                text=f"Неизвестная команда {cmd}. Список доступных команд: /start, /help, /status"
             )
         return
         
@@ -107,7 +104,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
         
     if state.step == DialogStep.AWAIT_ADDRESS:
         log.info("Поиск адреса в реестре домов: query='%s', user_id=%s", text, user_id)
-        matches = find_uk(strip_demo_city(text))
+        matches = find_uk(text)
         if len(matches) == 1:
             match = matches[0]
             state.uk_id = match.uk_id
@@ -138,7 +135,7 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             await client.send_message(
                 chat_id=chat_id,
                 user_id=user_id,
-                text="Адрес не найден в демо-реестре. Сейчас в нём только г. Москва, например: «Москва, ул. Пушкина, д. 10». Проверьте написание и отправьте адрес ещё раз."
+                text="Адрес не найден в базе. Попробуйте уточнить (например: «ул. Пушкина, д. 10») или свяжитесь с диспетчерской УК."
             )
             
     elif state.step in (DialogStep.AWAIT_PROBLEM, DialogStep.CLARIFY_CATEGORY, DialogStep.CLARIFY_ITEM):
@@ -213,18 +210,6 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
         else:
             log.info("Неоднозначная проблема: user_id=%s, категория=%s", user_id, state.category)
             state.clarification_step = 0
-            if result.category == Category.UNKNOWN and find_uk(strip_demo_city(text)):
-                state.step = DialogStep.AWAIT_PROBLEM
-                conv_store.save(state)
-                await client.send_message(
-                    chat_id=chat_id,
-                    user_id=user_id,
-                    text=(
-                        "Похоже, вы прислали адрес. Дом уже выбран, чтобы сменить его, отправьте /address. "
-                        "А пока опишите, что случилось (например: «течёт кран», «не горит свет в подъезде»)."
-                    ),
-                )
-                return
             if result.category == Category.UNKNOWN:
                 state.step = DialogStep.CLARIFY_CATEGORY
                 conv_store.save(state)

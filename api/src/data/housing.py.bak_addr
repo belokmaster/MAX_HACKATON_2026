@@ -120,17 +120,3 @@ def get_uk_by_id(uk_id: str) -> UKInfo | None:
         if entry.uk_id == uk_id:
             return entry
     return None
-
-
-# ---- город демо-реестра (модельные данные) ----
-DEMO_CITY = "Москва"
-
-
-def strip_demo_city(text: str) -> str:
-    """Убирает в начале запроса город демо-реестра: «Москва, ул. Пушкина, д. 10»."""
-    parts = [p.strip() for p in (text or "").split(",", 1)]
-    if len(parts) == 2:
-        head = re.sub(r"^(г|город)\s+", "", _normalize(parts[0]))
-        if head == _normalize(DEMO_CITY):
-            return parts[1]
-    return text

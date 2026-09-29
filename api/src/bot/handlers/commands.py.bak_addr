@@ -67,7 +67,7 @@ async def handle_start(client: MaxBotClient, update: dict) -> None:
     await client.send_message(
         chat_id=chat_id,
         user_id=user_id,
-        text="Добро пожаловать! Я помогу вам быстро оформить заявку в управляющую компанию.\nПожалуйста, напишите город и адрес вашего дома (например: «Москва, ул. Пушкина, д. 10»):"
+        text="Добро пожаловать! Я помогу вам быстро оформить заявку в управляющую компанию.\nПожалуйста, укажите адрес вашего дома (например: «ул. Пушкина, д. 10»):"
     )
 
 
@@ -165,23 +165,3 @@ async def handle_admin(client: MaxBotClient, update: dict) -> None:
         })
         
     await client.send_message(chat_id=chat_id, user_id=user_id, text=text, attachments=attachments if attachments else None)
-
-
-
-async def handle_address(client: MaxBotClient, update: dict) -> None:
-    """Смена адреса дома (/address): сбрасывает привязку к УК и запрашивает адрес заново."""
-    user_id, chat_id = extract_ids(update)
-    log.info("Команда /address: смена адреса user_id=%s", user_id)
-    state = conv_store.get_or_create(user_id, chat_id)
-    state.step = DialogStep.AWAIT_ADDRESS
-    state.uk_id = None
-    state.pending_appeal_id = None
-    state.category = None
-    state.responsibility = None
-    state.original_text = ""
-    conv_store.save(state)
-    await client.send_message(
-        chat_id=chat_id,
-        user_id=user_id,
-        text="Напишите город и адрес вашего дома (например: «Москва, ул. Пушкина, д. 10»):",
-    )
