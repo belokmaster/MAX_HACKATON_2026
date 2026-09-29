@@ -163,6 +163,22 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
     if not state:
         log.warning("Не удалось получить состояние диалога для user_id=%s", user_id)
         return
+
+    # Защита от устаревших кнопок: действие допустимо только на своём шаге диалога
+    allowed_steps = {
+        "resident:": (DialogStep.CLARIFYING,),
+        "book:": (DialogStep.AWAIT_BOOKING,),
+    }
+    for prefix, steps in allowed_steps.items():
+        if (payload or "").startswith(prefix) and state.step not in steps:
+            log.info("Устаревшая кнопка проигнорирована: user_id=%s, payload=%s, шаг=%s",
+                     user_id, payload, state.step)
+            await client.send_message(
+                chat_id=chat_id,
+                user_id=user_id,
+                text="Эта кнопка уже неактуальна. Опишите проблему заново или отправьте /status.",
+            )
+            return
         
     if (payload or "").startswith("cat:"):
         if state.step != DialogStep.CLARIFY_CATEGORY:
