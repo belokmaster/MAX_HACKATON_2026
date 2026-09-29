@@ -212,7 +212,10 @@ async def handle_message(client: MaxBotClient, update: dict) -> None:
             await client.send_message(
                 chat_id=chat_id,
                 user_id=user_id,
-                text="Уточните, пожалуйста, где именно находится неисправность:",
+                text=(
+                    "Уточните, кто отвечает за неисправность. Важно: общедомовая система "
+                    "может находиться внутри квартиры:"
+                ),
                 attachments=[clarification_zone_keyboard(state.category)]
             )
             

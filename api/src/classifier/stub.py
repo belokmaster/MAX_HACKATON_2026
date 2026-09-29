@@ -232,7 +232,7 @@ def classify(text: str) -> ClassifyResult:
         ):
             special_resp = Responsibility.UK
         elif selected_category == Category.ELECTRIC and any(
-            _match_keyword(text_norm, kw) for kw in ["розетка", "в квартире"]
+            _match_keyword(text_norm, kw) for kw in ["розетка", "выключатель"]
         ):
             special_resp = Responsibility.RESIDENT
 
@@ -245,7 +245,10 @@ def classify(text: str) -> ClassifyResult:
 
             if has_uk and not has_resident:
                 responsibility = Responsibility.UK
-            elif has_resident and not has_uk:
+            elif has_resident and not has_uk and selected_category not in (
+                Category.ELECTRIC,
+                Category.PLUMBING,
+            ):
                 responsibility = Responsibility.RESIDENT
             else:
                 responsibility = Responsibility.UNKNOWN
@@ -254,11 +257,19 @@ def classify(text: str) -> ClassifyResult:
     clarification_question: str | None = None
     if responsibility == Responsibility.UNKNOWN:
         if selected_category == Category.ELECTRIC:
-            clarification_question = "Уточните: неисправность в подъезде или в вашей квартире?"
+            clarification_question = (
+                "Уточните ответственность: это общедомовая система (даже если она в квартире) "
+                "или личное оборудование?"
+            )
         elif selected_category == Category.PLUMBING:
-            clarification_question = "Уточните: это общедомовой стояк или трубы/краны внутри квартиры?"
+            clarification_question = (
+                "Уточните ответственность: это общедомовые трубы или отопление "
+                "(УК), либо личная сантехника?"
+            )
         else:
-            clarification_question = "Уточните: неисправность в подъезде (общедомовое) или в вашей квартире?"
+            clarification_question = (
+                "Уточните: это общедомовая система (УК) или личное оборудование?"
+            )
 
     # 6. Оценка уверенности: 1.0 если зона определена, 0.5 если требуется уточнение
     if responsibility == Responsibility.EMERGENCY:

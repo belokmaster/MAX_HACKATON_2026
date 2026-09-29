@@ -2,17 +2,35 @@ from typing import Any
 
 def clarification_zone_keyboard(category: str) -> dict[str, Any]:
     """
-    Клавиатура для уточнения зоны ответственности (УК или жилец).
-    Две кнопки выбора и кнопка аварийной ситуации при необходимости.
+    Клавиатура для уточнения зоны ответственности.
+    Место неисправности не определяет ответственность: общедомовые системы
+    могут проходить внутри квартиры.
     """
     return {
         "type": "inline_keyboard",
         "payload": {
             "buttons": [
                 [
-                    {"type": "callback", "text": "В подъезде (УК)", "payload": "clarify:zone:uk"},
-                    {"type": "callback", "text": "В квартире (жилец)", "payload": "clarify:zone:resident"}
-                ]
+                    {
+                        "type": "callback",
+                        "text": "Общедомовая система (УК)",
+                        "payload": "clarify:zone:uk",
+                    }
+                ],
+                [
+                    {
+                        "type": "callback",
+                        "text": "Личное оборудование (жилец)",
+                        "payload": "clarify:zone:resident",
+                    }
+                ],
+                [
+                    {
+                        "type": "callback",
+                        "text": "Авария / срочно",
+                        "payload": "clarify:zone:emergency",
+                    }
+                ],
             ]
         }
     }
