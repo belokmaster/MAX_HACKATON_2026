@@ -1,0 +1,191 @@
+openapi: 3.1.0
+info:
+  title: Умный Дом (ЖКХ бот) API
+  version: 1.0.0
+  description: API для ЖКХ бота и валидации жюри MAX_HACKATON_2026
+servers:
+  - url: https://139-100-221-28.sslip.io
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      description: Проверка доступности API
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+  /api/appeals:
+    get:
+      summary: Список заявок
+      description: Получение списка заявок
+      operationId: listAppeals
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Фильтр по ID пользователя
+      responses:
+        '200':
+          description: Список объектов заявок
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Appeal'
+    post:
+      summary: Создать заявку
+      description: Создание новой заявки
+      operationId: createAppeal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - user_id
+                - chat_id
+                - uk_id
+                - category
+                - responsibility
+                - description
+              properties:
+                user_id:
+                  type: integer
+                chat_id:
+                  type: integer
+                uk_id:
+                  type: string
+                category:
+                  type: string
+                responsibility:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Заявка успешно создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appeal'
+  /api/appeals/{appeal_id}:
+    get:
+      summary: Получить заявку
+      description: Получение информации о заявке по идентификатору
+      operationId: getAppealById
+      parameters:
+        - name: appeal_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Идентификатор заявки
+      responses:
+        '200':
+          description: Объект заявки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appeal'
+        '404':
+          description: Заявка не найдена
+    patch:
+      summary: Обновить статус заявки
+      description: Обновление статуса существующей заявки
+      operationId: updateAppealStatus
+      parameters:
+        - name: appeal_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Идентификатор заявки
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Обновленный объект заявки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appeal'
+        '404':
+          description: Заявка не найдена
+    delete:
+      summary: Удалить заявку
+      description: Удаление (отмена) заявки по идентификатору
+      operationId: deleteAppeal
+      parameters:
+        - name: appeal_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Идентификатор заявки
+      responses:
+        '204':
+          description: Заявка успешно удалена
+        '404':
+          description: Заявка не найдена
+components:
+  schemas:
+    Appeal:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: integer
+        chat_id:
+          type: integer
+        uk_id:
+          type: string
+        category:
+          type: string
+        responsibility:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - open
+            - scheduled
+            - in_progress
+            - done
+            - cancelled
+            - needs_clarification
+        window_id:
+          type: string
+          nullable: true
+        window_label:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
