@@ -17,9 +17,9 @@ services:
 
   caddy:
     image: caddy:2-alpine
-#    ports: # для демо-стенда, перед оправкой в продакшн, включить проброс портов
-#      - "80:80"
-#      - "443:443"
+    ports:
+      - "80:80"
+      - "443:443"
     environment:
       - DOMAIN=${DOMAIN:-localhost}
     volumes:
