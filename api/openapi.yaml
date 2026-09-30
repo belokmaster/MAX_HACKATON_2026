@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: API для ЖКХ бота и валидации жюри MAX_HACKATON_2026
 servers:
-  - url: https://api.your-domain.com
+  - url: https://139-100-221-28.sslip.io
 paths:
   /api/health:
     get:

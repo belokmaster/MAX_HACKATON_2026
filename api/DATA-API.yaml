@@ -2,10 +2,10 @@ schemaVersion: "1.0"
 
 solution:
   name: "Умный Дом (ЖКХ бот)"
-  teamId: "team-placeholder"  # заполнит жюри
+  teamId: "smart-dom"
 
 api:
-  baseUrl: "https://api.your-domain.com"
+  baseUrl: "https://139-100-221-28.sslip.io"
   openapi: "./openapi.yaml"
   defaultHeaders:
     Accept: "application/json"

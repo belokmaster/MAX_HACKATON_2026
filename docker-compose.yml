@@ -1,11 +1,13 @@
 services:
   api:
     build: ./api
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     volumes:
       - ./certs:/app/certs:ro,Z
       - api_data:/app/data
-    networks: [internal, caddy-shared] # для демо-стенда, перед оправкой в продакшн, убрать caddy-shared
+    networks: [internal]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
@@ -19,7 +21,7 @@ services:
 #      - "80:80"
 #      - "443:443"
     environment:
-      - DOMAIN=${DOMAIN}
+      - DOMAIN=${DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
       - caddy_data:/data
@@ -36,5 +38,3 @@ volumes:
 networks:
   internal:
     driver: bridge
-  caddy-shared: # для демо-стенда, перед оправкой в продакшн, убрать caddy-shared
-    external: true

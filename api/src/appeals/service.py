@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.storage_util import atomic_write_text
+
 from datetime import datetime
 import json
 import logging
@@ -127,8 +129,7 @@ def _persist() -> None:
     try:
         _appeals_file.parent.mkdir(parents=True, exist_ok=True)
         data = [appeal.to_dict() for appeal in _appeals.values()]
-        with open(_appeals_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_text(_appeals_file, json.dumps(data, ensure_ascii=False, indent=2))
     except Exception as e:
         logger.error("Не удалось сохранить заявки в файл %s: %s", _appeals_file, e)
 

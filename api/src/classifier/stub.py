@@ -10,6 +10,21 @@ except ImportError:
 
 EMERGENCY_KEYWORDS: list[str] = [
     "прорвало",
+    "прорыв",
+    "прорвал",
+    "потоп",
+    "заливает",
+    "залило",
+    "искрит",
+    "искрение",
+    "искры",
+    "пахнет газом",
+    "утечка газа",
+    "возгорание",
+    "задымление",
+    "сильная протечка",
+    "сильно течёт",
+    "хлещет вода",
     "хлещет",
     "затопило",
     "газ",
@@ -200,9 +215,9 @@ def classify(text: str) -> ClassifyResult:
         selected_category = sorted_cats[0]
     elif is_emergency:
         # Определение категории для аварий при отсутствии явных ключевых слов
-        if any(_match_keyword(text_norm, kw) for kw in ["прорвало", "хлещет", "затопило"]):
+        if any(_match_keyword(text_norm, kw) for kw in ["прорвало", "прорыв", "прорвал", "потоп", "хлещет", "затопило", "заливает"]):
             selected_category = Category.PLUMBING
-        elif any(_match_keyword(text_norm, kw) for kw in ["искрит кабель", "горит проводка", "замыкание"]):
+        elif any(_match_keyword(text_norm, kw) for kw in ["искрит", "искры", "искрение", "горит проводка", "замыкание"]):
             selected_category = Category.ELECTRIC
 
     # 4. Определение зоны ответственности (УК / Жилец / Авария)

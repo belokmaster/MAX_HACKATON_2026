@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from src.storage_util import atomic_write_text
+
 import json
 from pathlib import Path
 from typing import Dict
@@ -36,8 +38,7 @@ def _persist_user_uk(user_id: int, uk_id: str) -> None:
     data[str(user_id)] = uk_id
     try:
         _users_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(_users_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_text(_users_file, json.dumps(data, ensure_ascii=False, indent=2))
     except Exception:
         pass
 

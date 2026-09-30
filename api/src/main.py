@@ -66,7 +66,10 @@ async def lifespan(app: FastAPI):
     # 7. Регистрация вебхука в платформе MAX
     try:
         logger.info("Регистрация вебхука: %s", settings.WEBHOOK_URL)
-        await bot_client.set_webhook(settings.WEBHOOK_URL, settings.WEBHOOK_SECRET)
+        if settings.BOT_TOKEN and settings.WEBHOOK_URL and "your-domain" not in settings.WEBHOOK_URL:
+            await bot_client.set_webhook(settings.WEBHOOK_URL, settings.WEBHOOK_SECRET)
+        else:
+            logger.warning("WEBHOOK_URL не задан — вебхук не регистрируется (локальный режим)")
     except Exception as e:
         logger.error("Не удалось зарегистрировать вебхук: %s", e)
 

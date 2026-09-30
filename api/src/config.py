@@ -15,9 +15,9 @@ class Settings(BaseSettings):
     )
 
     # Параметры платформы MAX
-    BOT_TOKEN: str
-    WEBHOOK_SECRET: str
-    WEBHOOK_URL: str
+    BOT_TOKEN: str = ""
+    WEBHOOK_SECRET: str = ""
+    WEBHOOK_URL: str = ""
     API_BASE_URL: str = "https://platform-api2.max.ru"
     SSL_CERT_PATH: str = "/app/certs/Russian_Trusted_Root_CA.cer"
 

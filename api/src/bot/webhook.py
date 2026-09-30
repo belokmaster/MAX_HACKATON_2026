@@ -1,3 +1,4 @@
+import hmac
 import logging
 
 from fastapi import APIRouter, Header, HTTPException, BackgroundTasks, Request
@@ -16,11 +17,17 @@ async def handle_webhook(
 ):
     """Обработчик входящих событий вебхука от платформы MAX."""
     settings = get_settings()
-    if x_max_bot_api_secret != settings.WEBHOOK_SECRET:
+    if not settings.WEBHOOK_SECRET or not hmac.compare_digest(x_max_bot_api_secret.encode(), settings.WEBHOOK_SECRET.encode()):
         logger.warning("Отклонен запрос вебхука: не совпадает секретный ключ X-Max-Bot-Api-Secret")
         raise HTTPException(status_code=403, detail="Неверный секретный ключ вебхука")
     
-    update = await request.json()
+    try:
+        update = await request.json()
+    except Exception:
+        logger.warning("Вебхук: тело запроса не JSON")
+        return {"ok": True}
+    if not isinstance(update, dict):
+        return {"ok": True}
     update_type = update.get("update_type", "unknown")
     logger.info("Вебхук успешно принят: update_type=%s, передача в фоновую обработку", update_type)
     background_tasks.add_task(dispatch_update, update)
