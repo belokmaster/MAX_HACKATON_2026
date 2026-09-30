@@ -9,7 +9,9 @@ from src.bot.client import MaxBotClient
 from src.conversation import store as conv_store
 from src.conversation.state import DialogStep
 from src.data.housing import get_uk_by_id
-from src.bot.keyboards import shift_windows_keyboard, resident_choice_keyboard
+from src.bot.keyboards import shift_windows_keyboard, resident_choice_keyboard, elements_keyboard, clarification_zone_keyboard
+from src.classifier.elements import find_element
+from src.classifier.categories import Responsibility as R
 from src.appeals import service as appeal_service
 from src.appeals.schemas import AppealStatus
 from src.scheduler import store as scheduler_store, service as scheduler_service
@@ -349,6 +351,88 @@ async def handle_callback(client: MaxBotClient, update: dict) -> None:
         log.info("Переключение страницы диспетчера: user_id=%s, страница=%d", user_id, n)
         await client.send_message(chat_id=chat_id, user_id=user_id, text=f"Страница списка заявок {n}.")
         
+    elif payload.startswith("cat:"):
+        cat_val = payload[4:].lower()
+        state.category = cat_val
+        state.step = DialogStep.CLARIFY_ITEM
+        conv_store.save(state)
+        log.info("Пользователь выбрал категорию через кнопку: %s (user_id=%s)", cat_val, user_id)
+        await client.send_message(
+            chat_id=chat_id,
+            user_id=user_id,
+            text="Что именно вышло из строя?",
+            attachments=[elements_keyboard(cat_val)],
+        )
+
+    elif payload.startswith("item:"):
+        item_key = payload[5:]
+        element = find_element(state.category, item_key) if state.category else None
+        log.info("Пользователь выбрал элемент: %s (user_id=%s)", item_key, user_id)
+
+        if not element or element.zone == R.UNKNOWN:
+            state.step = DialogStep.CLARIFYING
+            conv_store.save(state)
+            await client.send_message(
+                chat_id=chat_id,
+                user_id=user_id,
+                text="Уточните зону ответственности:",
+                attachments=[clarification_zone_keyboard(state.category or "general")],
+            )
+        elif element.zone == R.EMERGENCY:
+            description = state.original_text or element.label
+            reset_to_problem(state)
+            uk_info = get_uk_by_id(state.uk_id) if state.uk_id else None
+            emergency_phone = uk_info.emergency_phone if uk_info else "+7 000 000-00-00"
+            await client.send_message(
+                chat_id=chat_id,
+                user_id=user_id,
+                text=f"ВНИМАНИЕ: ЭТО АВАРИЯ! Пожалуйста, немедленно свяжитесь с аварийной службой: {emergency_phone}",
+            )
+            appeal = appeal_service.create_appeal(
+                user_id=user_id,
+                chat_id=chat_id,
+                uk_id=state.uk_id or "uk_01",
+                category="emergency",
+                responsibility="emergency",
+                description=description,
+            )
+            log.info("Создана аварийная заявка #%s для user_id=%s", appeal.id, user_id)
+        elif element.zone == R.UK:
+            state.responsibility = "uk"
+            state.step = DialogStep.AWAIT_BOOKING
+            conv_store.save(state)
+            appeal = appeal_service.create_appeal(
+                user_id=user_id,
+                chat_id=chat_id,
+                uk_id=state.uk_id or "uk_01",
+                category=state.category or "general",
+                responsibility="uk",
+                description=state.original_text or element.label,
+            )
+            state.pending_appeal_id = appeal.id
+            windows = scheduler_store.get_available_windows(state.category or "general", state.uk_id or "uk_01", 3, 4)
+            formatted_windows = scheduler_service.format_windows_for_chat(windows)
+            reason = f"\n{element.reason}" if element.reason else ""
+            await client.send_message(
+                chat_id=chat_id,
+                user_id=user_id,
+                text=f"Это зона ответственности УК. Ремонт бесплатный.{reason}\nПожалуйста, выберите время визита мастера:",
+                attachments=[shift_windows_keyboard(formatted_windows)],
+            )
+            conv_store.save(state)
+        elif element.zone == R.RESIDENT:
+            state.responsibility = "resident"
+            reason = f"\n{element.reason}" if element.reason else ""
+            await client.send_message(
+                chat_id=chat_id,
+                user_id=user_id,
+                text=f"Это зона вашей ответственности (платная услуга от 500 рублей).{reason}\nВызвать мастера УК?",
+                attachments=[resident_choice_keyboard()],
+            )
+            state.step = DialogStep.CLARIFYING
+            conv_store.save(state)
+    
+
     elif payload == "menu:problem":
         log.info("Пользователь запросил подачу новой проблемы: user_id=%s", user_id)
         await client.send_message(chat_id=chat_id, user_id=user_id, text="Пожалуйста, опишите вашу проблему:")
