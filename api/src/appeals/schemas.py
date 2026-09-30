@@ -1,4 +1,5 @@
 from __future__ import annotations
+from src.clock import now_msk
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -29,8 +30,8 @@ class Appeal:
     status: AppealStatus = AppealStatus.OPEN
     window_id: str | None = None     # Идентификатор забронированной смены
     window_label: str | None = None  # Текстовое описание смены для человека
-    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
-    updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    created_at: str = field(default_factory=lambda: now_msk().isoformat())
+    updated_at: str = field(default_factory=lambda: now_msk().isoformat())
 
     def to_dict(self) -> dict:
         """Сериализация заявки в словарь."""
@@ -72,6 +73,6 @@ class Appeal:
             status=status,
             window_id=data.get("window_id"),
             window_label=data.get("window_label"),
-            created_at=data.get("created_at") or datetime.now().isoformat(),
-            updated_at=data.get("updated_at") or datetime.now().isoformat(),
+            created_at=data.get("created_at") or now_msk().isoformat(),
+            updated_at=data.get("updated_at") or now_msk().isoformat(),
         )

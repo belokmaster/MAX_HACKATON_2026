@@ -1,4 +1,5 @@
 from __future__ import annotations
+from src.clock import now_msk
 
 from src.storage_util import atomic_write_text
 
@@ -33,7 +34,7 @@ def create_appeal(
 ) -> Appeal:
     """Создание новой заявки жильца, сохранение в памяти и на диске."""
     appeal_id = str(uuid.uuid4())[:8]
-    now = datetime.now().isoformat()
+    now = now_msk().isoformat()
     appeal = Appeal(
         id=appeal_id,
         user_id=int(user_id),
@@ -80,7 +81,7 @@ def update_status(appeal_id: str, status: AppealStatus | str) -> Appeal | None:
             pass
     prev_status = appeal.status
     appeal.status = status
-    appeal.updated_at = datetime.now().isoformat()
+    appeal.updated_at = now_msk().isoformat()
     _persist()
     logger.info("Статус заявки #%s изменен: %s -> %s", appeal_id, prev_status, appeal.status)
     return appeal
@@ -95,7 +96,7 @@ def update_window(appeal_id: str, window_id: str, window_label: str) -> Appeal |
     appeal.window_id = window_id
     appeal.window_label = window_label
     appeal.status = AppealStatus.SCHEDULED
-    appeal.updated_at = datetime.now().isoformat()
+    appeal.updated_at = now_msk().isoformat()
     _persist()
     logger.info("Назначена смена для заявки #%s: window_id=%s, время='%s', статус=SCHEDULED", appeal_id, window_id, window_label)
     return appeal
@@ -108,7 +109,7 @@ def cancel_appeal(appeal_id: str) -> Appeal | None:
         logger.warning("Попытка отмены несуществующей заявки #%s", appeal_id)
         return None
     appeal.status = AppealStatus.CANCELLED
-    appeal.updated_at = datetime.now().isoformat()
+    appeal.updated_at = now_msk().isoformat()
     _persist()
     try:
         from src.scheduler.store import unbook_appeal
@@ -154,8 +155,8 @@ def _load() -> None:
                 try:
                     from src.scheduler.store import book_window
                     book_window(appeal.window_id, appeal.id)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Не удалось восстановить бронь заявки %s: %s", appeal.id, e)
     except Exception as e:
         logger.error("Не удалось загрузить заявки из файла %s: %s", _appeals_file, e)
 

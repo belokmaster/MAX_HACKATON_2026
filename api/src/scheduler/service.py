@@ -1,4 +1,5 @@
 from __future__ import annotations
+from src.clock import today_msk
 
 from datetime import date, timedelta
 
@@ -41,7 +42,7 @@ def format_windows_for_chat(windows: list[ShiftWindow]) -> list[dict]:
     Возвращает список словарей: window_id, label, date_str, shift.
     Пример: "Сегодня: 09:00 — 13:00" или "Пн, 25 сен: 13:00 — 18:00".
     """
-    today = date.today()
+    today = today_msk()
     tomorrow = today + timedelta(days=1)
     results: list[dict] = []
 

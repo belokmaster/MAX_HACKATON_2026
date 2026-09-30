@@ -1,8 +1,9 @@
 from __future__ import annotations
+from src.clock import now_msk, today_msk
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict
 
 from src.data.specialists import ShiftType, get_specialists, Specialist
@@ -74,7 +75,7 @@ _windows: Dict[str, ShiftWindow] = {}
 
 def _ensure_windows(speciality: str, uk_id: str, n_days: int = 3, capacity: int = 4) -> None:
     """Создание слотов смен ShiftWindow на сегодня и следующие n_days дней при их отсутствии."""
-    today = date.today()
+    today = today_msk()
     for day_offset in range(n_days + 1):
         d = today + timedelta(days=day_offset)
         date_str = d.isoformat()
@@ -88,6 +89,23 @@ def _ensure_windows(speciality: str, uk_id: str, n_days: int = 3, capacity: int 
             )
             if win.window_id not in _windows:
                 _windows[win.window_id] = win
+
+
+# Смена закрывается для записи за BOOKING_CUTOFF_MIN минут до её окончания
+BOOKING_CUTOFF_MIN = 60
+
+
+def _shift_end(win_date: date, shift) -> datetime:
+    """Момент окончания смены (МСК, naive): утро до 13:00, день до 18:00."""
+    val = shift.value if hasattr(shift, "value") else str(shift)
+    hour = 13 if "morning" in val.lower() else 18
+    return datetime(win_date.year, win_date.month, win_date.day, hour, 0)
+
+
+def _shift_closed_for_booking(win: "ShiftWindow") -> bool:
+    """True, если смена закончилась или до её конца осталось меньше BOOKING_CUTOFF_MIN минут."""
+    end = _shift_end(date.fromisoformat(win.date_str), win.shift)
+    return now_msk() >= end - timedelta(minutes=BOOKING_CUTOFF_MIN)
 
 
 def get_available_windows(
@@ -104,14 +122,14 @@ def get_available_windows(
         speciality = "general"
 
     _ensure_windows(speciality, uk_id, n_days, capacity)
-    today = date.today()
+    today = today_msk()
     max_date = today + timedelta(days=n_days)
 
     available: list[ShiftWindow] = []
     for win in _windows.values():
         if win.speciality == speciality and win.uk_id == uk_id and win.is_available:
             win_date = date.fromisoformat(win.date_str)
-            if today <= win_date <= max_date:
+            if today <= win_date <= max_date and not _shift_closed_for_booking(win):
                 available.append(win)
 
     def _shift_order(shift: ShiftType) -> int:
@@ -139,8 +157,10 @@ def book_window(window_id: str, appeal_id: str) -> ShiftWindow | None:
     except ValueError:
         return None
 
-    today = date.today()
+    today = today_msk()
     if requested_date < today or requested_date > today + timedelta(days=3):
+        return None
+    if now_msk() >= _shift_end(requested_date, shift_str):
         return None
 
     if win is None:
